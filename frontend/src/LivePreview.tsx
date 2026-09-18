@@ -1,4 +1,8 @@
-import { Sandpack } from "@codesandbox/sandpack-react";
+import {
+  SandpackLayout,
+  SandpackPreview,
+  SandpackProvider,
+} from "@codesandbox/sandpack-react";
 
 interface LivePreviewProps {
   code: string;
@@ -7,14 +11,14 @@ interface LivePreviewProps {
 function LivePreview({ code }: LivePreviewProps) {
   if (!code) {
     return (
-      <div className="flex h-full items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
+      <div className="flex h-full items-center justify-center rounded-xl bg-slate-950 text-sm text-slate-500">
         Generate code to see the live preview.
       </div>
     );
   }
 
   return (
-    <Sandpack
+    <SandpackProvider
       template="react"
       files={{
         "/App.js": {
@@ -27,15 +31,30 @@ function LivePreview({ code }: LivePreviewProps) {
         },
       }}
       options={{
-        showNavigator: true,
-        showTabs: false,
-        editorHeight: "500px",
-
         externalResources: [
           "https://cdn.tailwindcss.com",
         ],
       }}
-    />
+    >
+      <SandpackLayout
+        style={{
+          border: "none",
+          borderRadius: 0,
+          overflow: "hidden",
+        }}
+      >
+        <SandpackPreview
+          showNavigator={true}
+          showOpenInCodeSandbox={false}
+          showRefreshButton={true}
+          showRestartButton={false}
+          style={{
+            height: "600px",
+            border: "none",
+          }}
+        />
+      </SandpackLayout>
+    </SandpackProvider>
   );
 }
 
