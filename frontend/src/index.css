@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@import "tailwindcss";
+
+/* Hide Sandpack's built-in code editor */
+.sandpack-preview-only .sp-layout > .sp-stack:first-child {
+  display: none !important;
+}
+
+/* Make the live preview use the full available width */
+.sandpack-preview-only .sp-layout > .sp-stack:last-child {
+  flex: 1 1 100% !important;
+  width: 100% !important;
+  min-width: 100% !important;
+}

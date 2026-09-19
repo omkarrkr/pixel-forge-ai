@@ -1,8 +1,4 @@
-import {
-  SandpackLayout,
-  SandpackPreview,
-  SandpackProvider,
-} from "@codesandbox/sandpack-react";
+import { Sandpack } from "@codesandbox/sandpack-react";
 
 interface LivePreviewProps {
   code: string;
@@ -11,50 +7,41 @@ interface LivePreviewProps {
 function LivePreview({ code }: LivePreviewProps) {
   if (!code) {
     return (
-      <div className="flex h-full items-center justify-center rounded-xl bg-slate-950 text-sm text-slate-500">
+      <div className="flex h-full items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
         Generate code to see the live preview.
       </div>
     );
   }
 
   return (
-    <SandpackProvider
-      template="react"
-      files={{
-        "/App.js": {
-          code,
-        },
-      }}
-      customSetup={{
-        dependencies: {
-          "lucide-react": "latest",
-        },
-      }}
-      options={{
-        externalResources: [
-          "https://cdn.tailwindcss.com",
-        ],
+    <div
+      className="sandpack-preview-only"
+      style={{
+        width: "100%",
       }}
     >
-      <SandpackLayout
-        style={{
-          border: "none",
-          borderRadius: 0,
-          overflow: "hidden",
+      <Sandpack
+        template="react"
+        files={{
+          "/App.js": {
+            code,
+          },
         }}
-      >
-        <SandpackPreview
-          showNavigator={true}
-          showOpenInCodeSandbox={false}
-          showRefreshButton={true}
-          showRestartButton={false}
-          style={{
-            height: "600px",
-            border: "none",
-          }}
-        />
-      </SandpackLayout>
-    </SandpackProvider>
+        customSetup={{
+          dependencies: {
+            "lucide-react": "latest",
+          },
+        }}
+        options={{
+          showNavigator: true,
+          showTabs: false,
+          editorHeight: "500px",
+          externalResources: [
+            "https://cdn.tailwindcss.com",
+          ],
+        }}
+      />
+    </div>
   );
 }
 
