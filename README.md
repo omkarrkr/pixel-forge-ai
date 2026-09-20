@@ -8,6 +8,14 @@ Upload a screenshot, let Gemini Vision analyze the design, and PixelForge genera
 
 ---
 
+## 🌐 Live Demo
+
+Try PixelForge AI live:
+
+**[🚀 Launch PixelForge AI](https://pixel-forge-ai-bay.vercel.app)**
+
+> The backend is deployed on Render and the frontend is deployed on Vercel.
+
 ## 📸 PixelForge in Action
 
 ### 1. Upload a Screenshot
