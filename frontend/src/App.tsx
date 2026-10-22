@@ -1,5 +1,5 @@
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8000";
+import.meta.env.VITE_API_URL || "http://localhost:8000";
 import { useRef, useState } from "react";
 import LivePreview from "./LivePreview";
 
@@ -522,161 +522,106 @@ function App() {
               </div>
             </div>
 
-            {/* Workspace */}
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              {/* Generated Code */}
-              <div className="group overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-950/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
-                {/* Code Header */}
-                <div className="flex items-center justify-between border-b border-slate-800/80 bg-slate-900/50 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-400/10 bg-emerald-500/10">
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="h-4 w-4 text-emerald-300"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M8 9l-3 3 3 3" />
-                        <path d="M16 9l3 3-3 3" />
-                        <path d="M14 5l-4 14" />
-                      </svg>
-                    </div>
-
-                    <div>
-                      <h3 className="text-sm font-semibold text-white">
-                        Generated Code
-                      </h3>
-
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        React + Tailwind
-                      </p>
-                    </div>
+            {/* PixelForge Studio Workspace */}
+            <div className="overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-950/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
+              {/* Workspace Toolbar */}
+              <div className="flex flex-col gap-4 border-b border-slate-800/80 bg-slate-900/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-violet-400/10 bg-violet-500/10">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="h-4 w-4 text-violet-300"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M8 9l-3 3 3 3" />
+                      <path d="M16 9l3 3-3 3" />
+                      <path d="M14 5l-4 14" />
+                    </svg>
                   </div>
 
-                  {/* Code Actions */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={copyCode}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
-                    >
-                      {isCopied ? (
-                        <>
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            className="h-3.5 w-3.5 text-emerald-400"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M20 6L9 17l-5-5" />
-                          </svg>
-                          Copied
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            className="h-3.5 w-3.5"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <rect x="9" y="9" width="11" height="11" rx="2" />
-                            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                          </svg>
-                          Copy
-                        </>
-                      )}
-                    </button>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">
+                      PixelForge Studio
+                    </h3>
 
-                    <button
-                      onClick={downloadCode}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="h-3.5 w-3.5"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M12 3v12" />
-                        <path d="M7 10l5 5 5-5" />
-                        <path d="M5 21h14" />
-                      </svg>
-                      Download
-                    </button>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Edit the generated code and see changes instantly.
+                    </p>
                   </div>
                 </div>
 
-                {/* Code */}
-                <div className="relative">
-                  {/* Small top label */}
-                  <div className="pointer-events-none absolute right-4 top-3 z-10 rounded-md border border-slate-800 bg-slate-950/80 px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-slate-600">
-                    JSX
-                  </div>
+                {/* Code Actions */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={copyCode}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
+                  >
+                    {isCopied ? (
+                      <>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="h-3.5 w-3.5 text-emerald-400"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="h-3.5 w-3.5"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="9" y="9" width="11" height="11" rx="2" />
+                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                        </svg>
+                        Copy
+                      </>
+                    )}
+                  </button>
 
-                  <pre className="h-[600px] overflow-auto bg-[#020617] p-5 pt-12 text-left text-sm leading-6 text-emerald-300 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-800">
-                    <code>{generatedCode}</code>
-                  </pre>
+                  <button
+                    onClick={downloadCode}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="h-3.5 w-3.5"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 3v12" />
+                      <path d="M7 10l5 5 5-5" />
+                      <path d="M5 21h14" />
+                    </svg>
+                    Download
+                  </button>
                 </div>
               </div>
 
-              {/* Live Preview */}
-              <div className="group overflow-hidden rounded-2xl border border-slate-800/90 bg-slate-950/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
-                {/* Preview Header */}
-                <div className="flex items-center justify-between border-b border-slate-800/80 bg-slate-900/50 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-400/10 bg-blue-500/10">
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="h-4 w-4 text-blue-300"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <circle cx="12" cy="12" r="9" />
-                        <path d="M3 12h18" />
-                        <path d="M12 3a14 14 0 010 18" />
-                      </svg>
-                    </div>
-
-                    <div>
-                      <h3 className="text-sm font-semibold text-white">
-                        Live Preview
-                      </h3>
-
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        Interactive generated UI
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Live Indicator */}
-                  <div className="flex items-center gap-2 rounded-full border border-emerald-400/10 bg-emerald-500/5 px-2.5 py-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
-
-                    <span className="text-[10px] font-medium text-emerald-400">
-                      LIVE
-                    </span>
-                  </div>
-                </div>
-
-                {/* Preview */}
-                <div className="overflow-hidden bg-white">
-                  <LivePreview code={generatedCode} />
-                </div>
+              {/* Single Editor + Preview Workspace */}
+              <div className="p-3 sm:p-4">
+                <LivePreview
+                  code={generatedCode}
+                  onCodeChange={setGeneratedCode}
+                />
               </div>
             </div>
           </section>
