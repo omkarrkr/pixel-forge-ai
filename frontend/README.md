@@ -1,5 +1,23 @@
 # React + TypeScript + Vite
 
+## PixelForge generation checks
+
+Run `npm test` with Node.js 22.18+ or 24+ to test request cancellation, stale
+responses, duplicate starts, timeouts, malformed responses, and preservation of
+existing edits. Tests use the built-in Node runner and mock fetch; they do not
+call the backend or Gemini. Run `npm run lint` and `npm run build` for static checks.
+
+For a manual check, start the frontend and backend, upload a screenshot, and
+generate code. Edit the result, then try regenerating with the browser set offline:
+your edits should remain. While a generation is pending, use Cancel generation
+or Escape, or select another screenshot: the old result must not appear afterward.
+Escape inside the code editor is left to the editor. Closing the replacement
+file picker without selecting a file keeps the current screenshot and code.
+
+The browser deadline is 90 seconds. Server generation defaults to 60 seconds,
+leaving room for upload and response transfer. Cancelling aborts the browser
+request, but cannot guarantee that provider-side processing or billing stops.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

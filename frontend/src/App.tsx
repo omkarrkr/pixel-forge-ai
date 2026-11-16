@@ -1,5 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { GenerationRequest } from "./generation";
 import LivePreview from "./LivePreview";
 import ParticleBackground from "./ParticleBackground";
 
@@ -15,6 +16,18 @@ function App() {
   const [scrolled, setScrolled] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [generation] = useState(() => new GenerationRequest({
+    onBusy: setIsGenerating,
+    onError: setGenerationError,
+    onCode: setGeneratedCode,
+  }));
+
+  useEffect(() => () => generation.cancel(false), [generation]);
+  useEffect(() => () => {
+    if (selectedImage) URL.revokeObjectURL(selectedImage);
+  }, [selectedImage]);
+
+  const cancelGeneration = useCallback(() => generation.cancel(), [generation]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -28,6 +41,7 @@ function App() {
       return;
     }
     const imageUrl = URL.createObjectURL(file);
+    cancelGeneration();
     setSelectedFile(file);
     setSelectedImage(imageUrl);
     setGeneratedCode("");
@@ -50,40 +64,16 @@ function App() {
   };
 
   const changeScreenshot = () => {
-    setSelectedFile(null);
-    setSelectedImage(null);
-    setGeneratedCode("");
-    setGenerationError("");
-    setIsCopied(false);
+    // Keep the current work if the user closes the file picker.
     if (fileInputRef.current) fileInputRef.current.value = "";
     fileInputRef.current?.click();
   };
 
-  const generateCode = async () => {
+  const generateCode = useCallback(async () => {
     if (!selectedFile) return;
-    setIsGenerating(true);
-    setGeneratedCode("");
-    setGenerationError("");
     setIsCopied(false);
-    try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      const response = await fetch(`${API_URL}/generate`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await response.json();
-      if (!response.ok || data.error) throw new Error(data.error || "Failed to generate code");
-      setGeneratedCode(data.code);
-    } catch (error) {
-      console.error("Generation failed:", error);
-      setGenerationError(
-        error instanceof Error ? error.message : "Something went wrong while generating the code."
-      );
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+    await generation.generate(selectedFile, `${API_URL}/generate`);
+  }, [selectedFile, generation]);
 
   const copyCode = async () => {
     if (!generatedCode) return;
@@ -102,16 +92,19 @@ function App() {
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === "Enter" && selectedImage && !isGenerating) generateCode();
+      const target = e.target as HTMLElement;
+      if (target.closest("input, textarea, [contenteditable='true'], .cm-editor")) return;
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && selectedImage && !isGenerating) {
+        e.preventDefault();
+        void generateCode();
+      }
       if (e.key === "Escape") {
-        setSelectedFile(null);
-        setSelectedImage(null);
-        setGeneratedCode("");
+        cancelGeneration();
       }
     };
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [selectedImage, isGenerating]);
+  }, [selectedImage, isGenerating, generateCode, cancelGeneration]);
 
   const downloadCode = () => {
     if (!generatedCode) return;
@@ -432,15 +425,20 @@ function App() {
                       >
                         <path d="M13 2L4.5 13h6L11 22l8.5-11h-6L13 2Z" />
                       </svg>
-                      Generate Code
+                      {generatedCode ? "Regenerate Code" : "Generate Code"}
                     </>
                   )}
                 </span>
               </button>
               {isGenerating && (
-                <p className="text-[13px] text-slate-500">
-                  Gemini Vision is reconstructing your UI — usually under 15s
-                </p>
+                <div className="flex items-center gap-4" role="status">
+                  <p className="text-[13px] text-slate-400">
+                    Generating your UI. You can cancel at any time.
+                  </p>
+                  <button onClick={cancelGeneration} className="rounded-md border border-slate-700 px-3 py-1.5 text-[13px] text-slate-200">
+                    Cancel generation
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -448,7 +446,7 @@ function App() {
 
         {/* ── ERROR ── */}
         {generationError && (
-          <section className="mb-12">
+          <section className="mb-12" role="alert">
             <div className="flex gap-4 rounded-xl border border-red-500/15 bg-red-950/20 p-4">
               <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
                 <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

@@ -1,14 +1,33 @@
 import os
 import base64
+import logging
+import asyncio
+import httpx
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from google import genai
+from google.genai import types
+from starlette.concurrency import run_in_threadpool
+
+from .protection import GenerationGuard, Limits, positive_setting, validate_image
 
 load_dotenv()
 
 app = FastAPI()
+limits = Limits.from_env()
+logger = logging.getLogger(__name__)
+
+# CORS is added afterward so rejected requests also carry CORS headers.
+app.add_middleware(GenerationGuard, limits=limits)
+
+
+@app.exception_handler(HTTPException)
+async def http_error(request: Request, error: HTTPException):
+    return JSONResponse({"error": error.detail}, status_code=error.status_code,
+                        headers=error.headers)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,7 +45,55 @@ api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("GEMINI_API_KEY is not set in the .env file")
 
-client = genai.Client(api_key=api_key)
+generation_timeout = positive_setting("GENERATION_TIMEOUT_SECONDS", 60)
+client = genai.Client(api_key=api_key, http_options=types.HttpOptions(
+    timeout=generation_timeout * 1000,
+    # The pinned Interactions SDK maps this field to max_retries (0 = no retry).
+    retry_options=types.HttpRetryOptions(attempts=0),
+))
+
+
+async def call_provider(request: Request, **kwargs):
+    async def disconnected():
+        # Multipart parsing has consumed the body. Listen directly for disconnect
+        # without polling is_disconnected(), whose cancel scope can swallow task
+        # cancellation when the provider completes at the same instant.
+        while True:
+            message = await request.receive()
+            if message["type"] == "http.disconnect":
+                return
+
+    generation = asyncio.create_task(client.aio.interactions.create(
+        **kwargs, timeout=float(generation_timeout)
+    ))
+    disconnect = asyncio.create_task(disconnected())
+    try:
+        done, _ = await asyncio.wait(
+            {generation, disconnect}, timeout=generation_timeout,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if disconnect in done:
+            raise HTTPException(499, "Generation was cancelled by the client.")
+        if generation not in done:
+            raise HTTPException(504, "Generation timed out. Please try again shortly.")
+        return await generation
+    except TimeoutError:
+        raise HTTPException(504, "Generation timed out. Please try again shortly.") from None
+    except Exception as error:
+        # The Interactions SDK wraps transport errors; preserve timeout semantics.
+        cause = error
+        seen = set()
+        while cause is not None and id(cause) not in seen:
+            seen.add(id(cause))
+            if isinstance(cause, (httpx.TimeoutException, TimeoutError)):
+                raise HTTPException(504, "Generation timed out. Please try again shortly.") from None
+            cause = cause.__cause__
+        raise
+    finally:
+        for task in (generation, disconnect):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(generation, disconnect, return_exceptions=True)
 
 
 @app.get("/")
@@ -36,23 +103,17 @@ def home():
     }
 
 
-@app.get("/test-gemini")
-def test_gemini():
-    interaction = client.interactions.create(
-        model="gemini-3.8-flash",
-        input="Say hello to PixelForge AI in one short sentence."
-    )
-
-    return {
-        "response": interaction.output_text
-    }
-
-
 @app.post("/generate")
-async def generate_code(file: UploadFile = File(...)):
+async def generate_code(request: Request, file: UploadFile = File(...)):
 
     try:
-        image_bytes = await file.read()
+        try:
+            image_bytes = await file.read(limits.max_upload_bytes + 1)
+        finally:
+            await file.close()
+        mime_type = await run_in_threadpool(
+            validate_image, image_bytes, file.content_type, limits
+        )
 
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -182,7 +243,8 @@ async def generate_code(file: UploadFile = File(...)):
         The first line of your response must be valid React code.
         """
 
-        interaction = client.interactions.create(
+        interaction = await call_provider(
+            request,
             model="gemini-3.6-flash",
             input=[
                 {
@@ -192,7 +254,7 @@ async def generate_code(file: UploadFile = File(...)):
                 {
                     "type": "image",
                     "data": image_base64,
-                    "mime_type": file.content_type or "image/png"
+                    "mime_type": mime_type
                 }
             ],
             generation_config={
@@ -200,7 +262,7 @@ async def generate_code(file: UploadFile = File(...)):
             }
         )
 
-        code = interaction.output_text.strip()
+        code = (interaction.output_text or "").strip()
 
         if code.startswith("```"):
             lines = code.splitlines()
@@ -213,13 +275,18 @@ async def generate_code(file: UploadFile = File(...)):
 
             code = "\n".join(lines).strip()
 
+        if not code:
+            raise HTTPException(502, "No code was generated. Please try again.")
+
         return {
             "code": code
         }
 
-    except Exception as error:
-        print("❌ Generation error:", repr(error))
-
-        return {
-            "error": str(error)
-        }
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Code generation failed")
+        return JSONResponse(
+            {"error": "Code generation failed. Please try again shortly."},
+            status_code=502,
+        )
