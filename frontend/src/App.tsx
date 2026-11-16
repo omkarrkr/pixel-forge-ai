@@ -1,11 +1,12 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 import { useRef, useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { GenerationRequest } from "./generation";
-import ParticleBackground from "./ParticleBackground";
+import { useTheme } from "./useTheme";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const LivePreview = lazy(() => import("./LivePreview"));
 
 function App() {
+  const { theme, preference, chooseTheme } = useTheme();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [generatedCode, setGeneratedCode] = useState("");
@@ -14,35 +15,26 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
+  const [copyError, setCopyError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [generation] = useState(() => new GenerationRequest({
     onBusy: setIsGenerating,
     onError: setGenerationError,
-    onCode: (code) => {
-      setGeneratedCode(code);
-      setOriginalCode(code);
-    },
+    onCode: code => { setGeneratedCode(code); setOriginalCode(code); },
   }));
 
   useEffect(() => () => generation.cancel(false), [generation]);
-  useEffect(() => () => {
-    if (selectedImage) URL.revokeObjectURL(selectedImage);
-  }, [selectedImage]);
-
+  useEffect(() => () => { if (selectedImage) URL.revokeObjectURL(selectedImage); }, [selectedImage]);
+  useEffect(() => {
+    if (!isCopied) return;
+    const timer = setTimeout(() => setIsCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [isCopied]);
   const cancelGeneration = useCallback(() => generation.cancel(), [generation]);
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   const handleFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setGenerationError("Please upload a valid image file.");
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setGenerationError("Choose a PNG, JPG, or WebP screenshot.");
       return;
     }
     const imageUrl = URL.createObjectURL(file);
@@ -52,561 +44,135 @@ function App() {
     setGeneratedCode("");
     setOriginalCode("");
     setGenerationError("");
+    setCopyError("");
     setIsCopied(false);
   };
-
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    handleFile(file);
-  };
-
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setIsDragging(false);
-    const file = event.dataTransfer.files?.[0];
-    if (!file) return;
-    handleFile(file);
-  };
-
-  const changeScreenshot = () => {
-    // Keep the current work if the user closes the file picker.
+  const chooseScreenshot = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
     fileInputRef.current?.click();
   };
-
   const generateCode = useCallback(async () => {
     if (!selectedFile) return;
     setIsCopied(false);
+    setCopyError("");
     await generation.generate(selectedFile, `${API_URL}/generate`);
   }, [selectedFile, generation]);
-
   const copyCode = async () => {
     if (!generatedCode) return;
     try {
       await navigator.clipboard.writeText(generatedCode);
       setIsCopied(true);
-      setShowSuccess(true);
-      setTimeout(() => {
-        setIsCopied(false);
-        setTimeout(() => setShowSuccess(false), 2000);
-      }, 2000);
-    } catch (error) {
-      console.error("Failed to copy code:", error);
+      setCopyError("");
+    } catch {
+      setCopyError("Clipboard access failed. Select the code in the editor or download the file.");
     }
   };
-
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest("input, textarea, [contenteditable='true'], .cm-editor")) return;
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && selectedImage && !isGenerating) {
-        e.preventDefault();
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement).closest("input, textarea, [contenteditable='true'], .cm-editor")) return;
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && selectedFile && !isGenerating) {
+        event.preventDefault();
         void generateCode();
       }
-      if (e.key === "Escape") {
-        cancelGeneration();
-      }
+      if (event.key === "Escape") cancelGeneration();
     };
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [selectedImage, isGenerating, generateCode, cancelGeneration]);
-
+  }, [selectedFile, isGenerating, generateCode, cancelGeneration]);
   const downloadCode = () => {
     if (!generatedCode) return;
-    const blob = new Blob([generatedCode], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(new Blob([generatedCode], { type: "text/plain;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = "PixelForgeGenerated.jsx";
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="min-h-screen bg-[#080810] text-white selection:bg-violet-500/30">
-      {/* Particle canvas */}
-      <ParticleBackground />
+    <div className="app-shell">
+      <a className="skip-link" href="#workspace">Skip to workspace</a>
+      <header className="site-header"><div className="header-inner">
+        <a href="#" className="brand" aria-label="PixelForge home">
+          <svg width="27" height="27" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M4 4h9v9H4zM15 4h9v9h-9zM4 15h9v9H4z" fill="currentColor"/><path d="M15 15h9v9h-9z" fill="currentColor" opacity=".3"/></svg>
+          <span>PixelForge<span className="brand-ai"> / AI</span></span>
+        </a>
+        <nav aria-label="Main navigation" className="header-nav">
+          <a href="#guide" className="guide-link">How it works</a>
+          <a href="https://github.com/omkarrkr/pixel-forge-ai" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+          <label className="theme-control">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+            <span className="sr-only">Color theme</span>
+            <select value={preference} onChange={event => chooseTheme(event.target.value as "light" | "dark" | "system")}>
+              <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
+            </select>
+          </label>
+        </nav>
+      </div></header>
+      <main className="main-content">
+        <div className="intro"><div>
+          <p className="eyebrow"><span className="eyebrow-line"/> FROM REFERENCE TO REACT</p>
+          <h1>Your screenshot.<br/>Your next starting point.</h1>
+          <p className="intro-copy">Recreate an interface in React and Tailwind.<br className="desktop-break"/> Preview it, refine the details, and make it yours.</p>
+        </div></div>
 
-      {/* Ambient light blobs */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-40 left-1/2 h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-violet-600/[0.06] blur-[120px]" />
-        <div className="absolute top-1/3 -right-40 h-[400px] w-[500px] rounded-full bg-blue-600/[0.04] blur-[100px]" />
-        <div className="absolute bottom-0 left-0 h-[350px] w-[400px] rounded-full bg-purple-800/[0.05] blur-[100px]" />
-      </div>
-
-      {/* ── GLASSMORPHISM HEADER ─────────────────────────────────────── */}
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
-            ? "border-b border-white/[0.06] bg-[#080810]/80 backdrop-blur-xl shadow-[0_1px_0_0_rgba(255,255,255,0.04)]"
-            : "border-b border-transparent bg-transparent"
-        }`}
-      >
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5">
-          {/* Logo */}
-          <div className="flex items-center gap-2.5">
-            <div className="relative flex h-7 w-7 items-center justify-center">
-              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 opacity-90" />
-              <svg
-                className="relative h-4 w-4 text-white"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2.2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M13 2L4.5 13h6L11 22l8.5-11h-6L13 2Z" />
-              </svg>
+        <div className="studio-frame" id="workspace">
+        <div className="studio-heading"><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg> Interface studio</span><span className="session-label">{isGenerating ? "Generating" : originalCode ? "Ready to refine" : "New session"}</span></div>
+        <div className="workspace">
+          <section className="reference-panel" aria-labelledby="reference-heading">
+            <div className="panel-heading"><h2 id="reference-heading"><span className="step-number">01</span> Reference</h2>{selectedImage && <button className="text-button" onClick={chooseScreenshot}>Replace</button>}</div>
+            <div className="reference-content">
+              <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" tabIndex={-1} aria-label="Choose screenshot" onChange={event => { const file = event.target.files?.[0]; if (file) handleFile(file); }}/>
+              <button type="button" className={`upload-surface ${selectedImage ? "has-image" : ""} ${isDragging ? "is-dragging" : ""}`}
+                onClick={chooseScreenshot} aria-label={selectedImage ? "Replace reference screenshot" : "Upload or drop a screenshot"} aria-describedby="upload-requirements"
+                onDragOver={event => { event.preventDefault(); setIsDragging(true); }}
+                onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setIsDragging(false); }}
+                onDrop={event => { event.preventDefault(); setIsDragging(false); const file = event.dataTransfer.files[0]; if (file) handleFile(file); }}>
+                {selectedImage ? <img src={selectedImage} alt="Reference screenshot"/> : <>
+                  <span className="upload-symbol" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>
+                  <strong>{isDragging ? "Drop your screenshot here" : "Add a screenshot"}</strong>
+                  <span>Drop a screenshot, or <span className="upload-link">browse files</span></span>
+                </>}
+              </button>
+              {selectedFile && <div className="file-details"><span title={selectedFile.name}>{selectedFile.name}</span><span>{(selectedFile.size / 1024).toFixed(0)} KB</span></div>}
+              <p className="input-hint" id="upload-requirements">PNG, JPG or WebP · Default limit: 5 MB</p>
+              <button className="primary-button generate-button" disabled={!selectedFile || isGenerating} onClick={() => { void generateCode(); }}>
+                {isGenerating ? <><span className="spinner" aria-hidden="true"/> Generating…</> : <>{originalCode ? "Regenerate interface" : "Generate interface"}<span aria-hidden="true">→</span></>}
+              </button>
+              {isGenerating ? <div className="generation-status" role="status"><p>Reconstructing your interface.</p><button className="text-button" onClick={cancelGeneration}>Cancel generation</button></div> : <p className="keyboard-hint"><kbd>Ctrl / ⌘</kbd> <kbd>Enter</kbd> to generate</p>}
+              {generationError && <div role="alert" className="error-notice"><strong>Generation needs attention</strong><p>{generationError}</p></div>}
+              <div className="reference-note"><span aria-hidden="true">↳</span><p>Start with a clear reference. Fonts, images, and interactions may need a finishing touch.</p></div>
             </div>
-            <span className="text-[15px] font-semibold tracking-[-0.01em] text-white">
-              PixelForge
-            </span>
-            <span className="hidden rounded-[4px] bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-widest text-violet-400 ring-1 ring-violet-500/20 sm:inline">
-              Beta
-            </span>
-          </div>
+          </section>
 
-          {/* Center nav links */}
-          <nav className="hidden items-center gap-6 md:flex">
-            <a
-              href="#how-it-works"
-              className="text-[13px] font-medium text-slate-400 transition hover:text-white"
-            >
-              How it works
-            </a>
-            <a
-              href="#studio"
-              className="text-[13px] font-medium text-slate-400 transition hover:text-white"
-            >
-              Studio
-            </a>
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[13px] font-medium text-slate-400 transition hover:text-white"
-            >
-              GitHub
-            </a>
-          </nav>
-
-          {/* CTA */}
-          <div className="flex items-center gap-3">
-            <div className="hidden items-center gap-1.5 sm:flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[12px] font-medium text-slate-400">Live</span>
+          <section className="output-panel" aria-labelledby="output-heading" aria-busy={isGenerating}>
+            <div className="panel-heading output-heading"><h2 id="output-heading"><span className="step-number">02</span> Your interface</h2>
+              {originalCode && <div className="output-actions"><button className="secondary-button" onClick={copyCode} disabled={!generatedCode}>{isCopied ? "Copied!" : "Copy code"}</button><button className="secondary-button" onClick={downloadCode} disabled={!generatedCode}>Download .jsx <span aria-hidden="true">↓</span></button></div>}
             </div>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex h-8 items-center gap-2 rounded-lg bg-white/[0.07] px-3.5 text-[13px] font-medium text-slate-200 ring-1 ring-white/[0.08] transition hover:bg-white/[0.12] hover:text-white"
-            >
-              Upload screenshot
-              <svg className="h-3.5 w-3.5 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 16V4M7 9l5-5 5 5" />
-              </svg>
-            </button>
-          </div>
+            <span className="sr-only" role="status">{isCopied ? "Code copied to clipboard." : ""}</span>
+            {copyError && <p role="alert" className="error-notice">{copyError}</p>}
+            {originalCode ? <Suspense fallback={<div className="output-empty" role="status">Loading editor and preview…</div>}><LivePreview code={generatedCode} originalCode={originalCode} onCodeChange={setGeneratedCode} theme={theme}/></Suspense> : <div className="output-empty">
+              <div className="empty-window" aria-hidden="true"><div className="empty-window-top"><span/><span/></div><div className="empty-window-body"><div className="empty-line long"/><div className="empty-line"/><div className="empty-columns"><div/><div/></div><div className="empty-small-button"/></div></div>
+              <p className="empty-kicker">{isGenerating ? "GENERATION IN PROGRESS" : "READY WHEN YOU ARE"}</p>
+              <h3>{isGenerating ? "Recreating your interface." : "Your interface starts here."}</h3>
+              <p>{isGenerating ? "Your component will appear here. You can cancel at any time." : "Add a screenshot to get started. Your code and live preview will appear here."}</p>
+            </div>}
+          </section>
         </div>
-      </header>
+        <div className="studio-footer"><span>React JSX <span aria-hidden="true">/</span> Tailwind CSS</span><span>Unsaved session · Download to keep your work</span></div>
+        </div>
 
-      {/* ── PAGE CONTENT ────────────────────────────────────────────── */}
-      <main className="relative mx-auto w-full max-w-6xl px-5 pb-24 pt-28">
-
-        {/* ── HERO ── */}
-        <section className="mb-20 pt-8 animate-fade-in-up" id="how-it-works">
-          {/* Eyebrow */}
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-[12px] font-medium text-slate-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-              Gemini 2.0 Vision
-            </div>
-            <div className="h-px flex-1 bg-gradient-to-r from-slate-800 to-transparent" />
-          </div>
-
-          {/* Main heading — left-aligned, intentionally imperfect weight mix */}
-          <h1 className="mb-5 max-w-3xl text-left text-[52px] font-extrabold leading-[1.08] tracking-[-0.03em] text-white sm:text-[64px] lg:text-[72px]">
-            Screenshot in.
-            <br />
-            <span className="text-slate-400 font-light">Frontend code out.</span>
-          </h1>
-
-          <p className="max-w-lg text-left text-[15px] leading-relaxed text-slate-500">
-            Drop any UI screenshot. Get back clean React&nbsp;+&nbsp;Tailwind —
-            layouts, spacing, colors, components.
-          </p>
-
-          {/* Feature chips row */}
-          <div className="mt-8 flex flex-wrap items-center gap-2">
-            {[
-              {
-                label: "React + Tailwind",
-                icon: (
-                  <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M13 2L4.5 13h6L11 22l8.5-11h-6L13 2Z" />
-                  </svg>
-                ),
-              },
-              {
-                label: "Pixel-accurate",
-                icon: (
-                  <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                  </svg>
-                ),
-              },
-              {
-                label: "Live studio",
-                icon: (
-                  <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 9l-3 3 3 3M16 9l3 3-3 3M14 5l-4 14" />
-                  </svg>
-                ),
-              },
-              {
-                label: "Download .jsx",
-                icon: (
-                  <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
-                  </svg>
-                ),
-              },
-            ].map((f) => (
-              <span
-                key={f.label}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-800/80 bg-slate-900/30 px-3 py-1.5 text-[12px] font-medium text-slate-500"
-              >
-                <span className="text-slate-600">{f.icon}</span>
-                {f.label}
-              </span>
-            ))}
-          </div>
+        <section className="workflow-guide" id="guide" aria-label="How it works">
+          {[
+            ["01", "Bring a reference", "Upload a page, a dashboard, or a single UI detail."],
+            ["02", "Refine the details", "Compare your preview. Edit the code. Find the right fit."],
+            ["03", "Make it part of your project", "Copy or download the component for your React and Tailwind setup."],
+          ].map(([number, title, description]) => <div key={number}><span className="guide-number">{number}</span><h3>{title}</h3><p>{description}</p></div>)}
         </section>
-
-        {/* ── UPLOAD ZONE ── */}
-        <section
-          className="mb-20 animate-fade-in-up"
-          style={{ animationDelay: "0.12s" }}
-        >
-          {!selectedImage ? (
-            <div
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`
-                group relative cursor-pointer overflow-hidden rounded-2xl border transition-all duration-300
-                ${isDragging
-                  ? "border-violet-500/50 bg-violet-500/[0.04] scale-[1.01]"
-                  : "border-slate-800/80 bg-[#0d0d15] hover:border-slate-700 hover:bg-[#0f0f18]"
-                }
-              `}
-            >
-              {/* Subtle grid texture */}
-              <div
-                className="pointer-events-none absolute inset-0 opacity-[0.018]"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)",
-                  backgroundSize: "40px 40px",
-                }}
-              />
-
-              {/* Corner glow on hover */}
-              <div className="pointer-events-none absolute -top-20 -right-20 h-60 w-60 rounded-full bg-violet-500/[0.06] blur-[60px] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-
-              <div className="relative flex flex-col items-center justify-center px-8 py-16 text-center">
-                {/* Upload icon with ring */}
-                <div
-                  className={`mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border transition-all duration-300 ${
-                    isDragging
-                      ? "border-violet-500/40 bg-violet-500/10 scale-110"
-                      : "border-slate-800 bg-slate-900/60 group-hover:border-slate-700 group-hover:scale-105"
-                  }`}
-                >
-                  <svg
-                    className={`h-6 w-6 transition-colors duration-300 ${
-                      isDragging ? "text-violet-400" : "text-slate-500 group-hover:text-slate-300"
-                    }`}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
-                  </svg>
-                </div>
-
-                <h3 className="mb-2 text-[16px] font-semibold text-white">
-                  {isDragging ? "Drop it here" : "Drop a screenshot"}
-                </h3>
-                <p className="mb-6 text-[13px] text-slate-600">
-                  {isDragging ? "Release to upload" : "or click to browse"}
-                </p>
-
-                <div className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-600">
-                  <span>PNG</span>
-                  <span className="text-slate-800">·</span>
-                  <span>JPG</span>
-                  <span className="text-slate-800">·</span>
-                  <span>WEBP</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-800/80 bg-[#0d0d15]">
-              {/* Header bar */}
-              <div className="flex items-center justify-between border-b border-slate-800/80 px-5 py-3.5">
-                <div className="flex items-center gap-3">
-                  {/* macOS-style dots */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-3 w-3 rounded-full bg-red-500/70" />
-                    <span className="h-3 w-3 rounded-full bg-yellow-500/70" />
-                    <span className="h-3 w-3 rounded-full bg-green-500/70" />
-                  </div>
-                  <span className="text-[12px] font-medium text-slate-500">
-                    {selectedFile?.name ?? "screenshot"}
-                  </span>
-                </div>
-                <button
-                  onClick={changeScreenshot}
-                  className="rounded-md border border-slate-800 bg-slate-900/50 px-3 py-1.5 text-[12px] font-medium text-slate-400 transition hover:border-slate-700 hover:text-slate-200"
-                >
-                  Change
-                </button>
-              </div>
-
-              {/* Image preview */}
-              <div className="p-5">
-                <div className="overflow-hidden rounded-xl border border-slate-800/60">
-                  <img
-                    src={selectedImage}
-                    alt="Selected screenshot"
-                    className="mx-auto max-h-[480px] w-full object-contain"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-
-          {/* Generate button */}
-          {selectedImage && (
-            <div className="mt-6 flex flex-col items-start gap-3">
-              <button
-                onClick={generateCode}
-                disabled={isGenerating}
-                className="group relative inline-flex h-11 items-center gap-2.5 overflow-hidden rounded-xl bg-white px-6 text-[14px] font-semibold text-slate-950 shadow-lg shadow-white/10 transition-all duration-200 hover:-translate-y-px hover:shadow-white/20 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span className="absolute inset-0 bg-gradient-to-r from-slate-100 via-white to-slate-100 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                <span className="relative flex items-center gap-2.5">
-                  {isGenerating ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-800" />
-                      Analyzing screenshot…
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="h-4 w-4"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M13 2L4.5 13h6L11 22l8.5-11h-6L13 2Z" />
-                      </svg>
-                      {generatedCode ? "Regenerate Code" : "Generate Code"}
-                    </>
-                  )}
-                </span>
-              </button>
-              {isGenerating && (
-                <div className="flex items-center gap-4" role="status">
-                  <p className="text-[13px] text-slate-400">
-                    Generating your UI. You can cancel at any time.
-                  </p>
-                  <button onClick={cancelGeneration} className="rounded-md border border-slate-700 px-3 py-1.5 text-[13px] text-slate-200">
-                    Cancel generation
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* ── ERROR ── */}
-        {generationError && (
-          <section className="mb-12" role="alert">
-            <div className="flex gap-4 rounded-xl border border-red-500/15 bg-red-950/20 p-4">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
-                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-[14px] font-semibold text-red-400">Generation failed</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-slate-400">{generationError}</p>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── STUDIO OUTPUT ── */}
-        {originalCode && (
-          <section className="mt-4" id="studio">
-            {/* Section label */}
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-px w-6 bg-slate-700" />
-                <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Studio Output
-                </span>
-              </div>
-              <button
-                onClick={changeScreenshot}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-transparent px-3 py-1.5 text-[12px] font-medium text-slate-500 transition hover:border-slate-700 hover:text-slate-300"
-              >
-                <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3v18M3 12h18" />
-                </svg>
-                New screenshot
-              </button>
-            </div>
-
-            {/* Studio card */}
-            <div className="overflow-hidden rounded-2xl border border-slate-800/80 bg-[#0c0c14] shadow-2xl shadow-black/40">
-              {/* Toolbar */}
-              <div className="flex items-center justify-between border-b border-slate-800/80 bg-slate-900/30 px-5 py-3">
-                <div className="flex items-center gap-3">
-                  {/* dots */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-3 w-3 rounded-full bg-red-500/60" />
-                    <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
-                    <span className="h-3 w-3 rounded-full bg-green-500/60" />
-                  </div>
-                  <span className="text-[12px] font-medium text-slate-500">
-                    PixelForge Studio
-                  </span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={copyCode}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition ${
-                      isCopied
-                        ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
-                        : "border-slate-800 bg-transparent text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                    }`}
-                  >
-                    {isCopied ? (
-                      <>
-                        <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M20 6L9 17l-5-5" />
-                        </svg>
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="11" height="11" rx="2" />
-                          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                        </svg>
-                        Copy
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={downloadCode}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-transparent px-3 py-1.5 text-[12px] font-medium text-slate-400 transition hover:border-slate-700 hover:text-slate-200"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
-                    </svg>
-                    Download
-                  </button>
-                </div>
-              </div>
-
-              {/* Sandpack */}
-              <div className="p-3 sm:p-4">
-                <Suspense fallback={<p role="status" className="p-6 text-slate-300">Loading code editor and preview...</p>}>
-                  <LivePreview code={generatedCode} originalCode={originalCode} onCodeChange={setGeneratedCode} />
-                </Suspense>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── FOOTER ── */}
-        <footer className="mt-32 border-t border-slate-900">
-          <div className="py-10">
-            <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
-              {/* Brand */}
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-indigo-600">
-                  <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 text-white" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M13 2L4.5 13h6L11 22l8.5-11h-6L13 2Z" />
-                  </svg>
-                </div>
-                <span className="text-[13px] font-semibold text-slate-300">PixelForge AI</span>
-                <span className="text-slate-700">·</span>
-                <span className="text-[12px] text-slate-600">Screenshot to Code</span>
-              </div>
-
-              {/* Stack */}
-              <div className="flex items-center gap-4 text-[12px] text-slate-600">
-                {["React", "FastAPI", "Gemini", "Sandpack"].map((t, i, arr) => (
-                  <span key={t} className="flex items-center gap-4">
-                    {t}
-                    {i < arr.length - 1 && <span className="text-slate-800">·</span>}
-                  </span>
-                ))}
-              </div>
-
-              {/* Credit + year */}
-              <div className="text-right">
-                <p className="text-[12px] text-slate-600">Built by Omkar Kumar</p>
-                <p className="text-[11px] text-slate-700">© {new Date().getFullYear()} PixelForge AI</p>
-              </div>
-            </div>
-          </div>
-        </footer>
       </main>
-
-      {/* ── COPY TOAST ── */}
-      <div
-        className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl border border-emerald-500/15 bg-[#0d0d15]/95 px-4 py-3 shadow-2xl shadow-black/50 backdrop-blur-xl transition-all duration-400 ${
-          showSuccess
-            ? "translate-y-0 opacity-100"
-            : "translate-y-3 opacity-0 pointer-events-none"
-        }`}
-      >
-        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10">
-          <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 text-emerald-400" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
-        </div>
-        <p className="text-[13px] font-medium text-slate-200">Copied to clipboard</p>
-      </div>
+      <footer className="site-footer"><span>PixelForge AI</span><p>Built by Omkar Kumar</p><span>Screenshot → React</span></footer>
     </div>
   );
 }

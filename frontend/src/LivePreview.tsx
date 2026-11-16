@@ -5,12 +5,13 @@ import {
   SandpackLayout,
   useSandpack,
 } from "@codesandbox/sandpack-react";
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { validateGeneratedCode } from "./validateCode";
 
 interface LivePreviewProps {
   code: string;
   originalCode: string;
+  theme: "light" | "dark";
   onCodeChange?: (code: string) => void;
 }
 
@@ -30,7 +31,9 @@ function CodeChangeListener({ onCodeChange }: { onCodeChange: (code: string) => 
   return null;
 }
 
-function PreviewRecovery({ originalCode }: { originalCode: string }) {
+type View = "preview" | "code" | "split";
+
+function PreviewRecovery({ originalCode, view, onViewChange }: { originalCode: string; view: View; onViewChange: (view: View) => void }) {
   const { sandpack } = useSandpack();
   const current = sandpack.files["/App.js"]?.code ?? "";
   const validation = useMemo(() => validateGeneratedCode(current), [current]);
@@ -38,34 +41,33 @@ function PreviewRecovery({ originalCode }: { originalCode: string }) {
     (sandpack.status === "timeout" ? "The preview could not connect. Check your connection, then restart the preview." : "");
 
   return (
-    <div className="mb-3 rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+    <>
+      <div className="preview-toolbar">
+        <div className="preview-tabs" role="group" aria-label="Workspace view">
+          {(["preview", "code", "split"] as const).map(option => <button key={option} aria-pressed={view === option} onClick={() => onViewChange(option)}>{option.charAt(0).toUpperCase() + option.slice(1)}</button>)}
+        </div>
+        <div className="recovery-actions">
+          <button onClick={() => { void sandpack.runSandpack(); }} className="secondary-button">Restart preview</button>
+          <button onClick={() => sandpack.updateFile("/App.js", originalCode)} disabled={current === originalCode} className="secondary-button">Restore generated code</button>
+        </div>
+      </div>
       {error && (
-        <div role="alert" className="mb-3 text-[13px] text-amber-200">
-          <p className="font-semibold">Preview needs attention</p>
-          <p className="mt-1 whitespace-pre-wrap break-words">{error}</p>
-          <p className="mt-1 text-slate-300">Your code is still available. Fix it in the editor or restore the generated version.</p>
+        <div role="alert" className="error-notice preview-error">
+          <strong>Preview needs attention</strong>
+          <p>{error}</p>
+          <p>Your code is still available. Open Code to fix it, or restore the generated version.</p>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-3">
-        <button onClick={() => { void sandpack.runSandpack(); }}
-          className="rounded-md border border-slate-600 px-3 py-1.5 text-[12px] text-slate-200">
-          Restart preview
-        </button>
-        <button onClick={() => sandpack.updateFile("/App.js", originalCode)}
-          disabled={current === originalCode}
-          className="rounded-md border border-slate-600 px-3 py-1.5 text-[12px] text-slate-200 disabled:opacity-40">
-          Restore generated code
-        </button>
-        <span className="text-[12px] text-slate-400">Restore replaces your edits with the latest generated version.</span>
-      </div>
-    </div>
+      {current !== originalCode && <p className="recovery-help">Restore replaces your edits with the latest generated version.</p>}
+    </>
   );
 }
 
-function LivePreview({ code, originalCode, onCodeChange }: LivePreviewProps) {
+function LivePreview({ code, originalCode, onCodeChange, theme }: LivePreviewProps) {
+  const [view, setView] = useState<View>("preview");
   if (!originalCode) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-slate-800 bg-slate-950/50 text-[13px] text-slate-600">
+      <div className="output-empty">
         Generate code to see the preview.
       </div>
     );
@@ -78,19 +80,20 @@ function LivePreview({ code, originalCode, onCodeChange }: LivePreviewProps) {
       files={{ "/App.js": { code } }}
       customSetup={{ dependencies: { "lucide-react": "latest" } }}
       options={{ externalResources: ["https://cdn.tailwindcss.com"] }}
-      theme="dark"
+      theme={theme}
     >
       {onCodeChange && <CodeChangeListener onCodeChange={onCodeChange} />}
-      <PreviewRecovery originalCode={originalCode} />
+      <PreviewRecovery originalCode={originalCode} view={view} onViewChange={setView} />
 
       {/* SandpackLayout handles the split correctly — no overflow-hidden wrapper needed */}
-      <SandpackLayout style={{ borderRadius: "0.75rem", border: "1px solid rgba(30,30,50,0.8)" }}>
+      <div className={`preview-layout ${view}-only`}>
+      <SandpackLayout style={{ borderRadius: 0, border: 0 }}>
         <SandpackCodeEditor
           showTabs={false}
           showLineNumbers={true}
           showInlineErrors={true}
           wrapContent={false}
-          style={{ height: 580, fontSize: "12.5px", flex: 1 }}
+          style={{ height: 540, fontSize: "12.5px", flex: 1 }}
         />
         <SandpackPreview
           showNavigator={false}
@@ -98,9 +101,10 @@ function LivePreview({ code, originalCode, onCodeChange }: LivePreviewProps) {
           showRefreshButton={true}
           showRestartButton={true}
           showSandpackErrorOverlay={true}
-          style={{ height: 580, flex: 1 }}
+          style={{ height: 540, flex: 1 }}
         />
       </SandpackLayout>
+      </div>
     </SandpackProvider>
   );
 }

@@ -20,6 +20,19 @@ request, but cannot guarantee that provider-side processing or billing stops.
 
 ## Generated-code validation and preview recovery
 
+The workspace uses neutral light and dark themes with a reference panel beside
+the output on desktop and stacked panels on mobile. The header's Color theme
+selector offers Light, Dark, and System. The selection is saved locally when
+browser storage is available; System follows the device's color preference.
+The theme is applied before the first paint, and the code editor follows it.
+Changing the theme preserves edits and does not recolor the generated page.
+Short entrance and hover transitions respect reduced-motion preferences.
+Preview / Code / Split controls switch
+views without discarding editor content. The upload control supports keyboard
+activation and drag-and-drop. Focus indicators, status/error announcements, and
+reduced-motion styles are included. Decorative particles and external font loading
+are no longer used by the page.
+
 Before replacing an existing result, the browser parses generated JavaScript/JSX
 and checks the single-file contract: a default-exported component, static imports
 only from `react` and `lucide-react`, no dynamic imports or `require()`, and a
