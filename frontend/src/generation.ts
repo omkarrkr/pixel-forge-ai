@@ -60,6 +60,12 @@ export class GenerationRequest {
       if (typeof result.code !== "string" || !result.code.trim()) {
         throw new Error("No code was returned. Your previous code is preserved. Please try again.");
       }
+      const { validateGeneratedCode } = await import("./validateCode.ts");
+      if (this.active !== request) return;
+      const validationError = validateGeneratedCode(result.code);
+      if (validationError) {
+        throw new Error(`The generated component could not be used: ${validationError} Your previous code is preserved. Please regenerate.`);
+      }
       this.callbacks.onCode(result.code);
     } catch (error) {
       if (this.active !== request) return;

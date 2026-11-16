@@ -18,6 +18,34 @@ The browser deadline is 90 seconds. Server generation defaults to 60 seconds,
 leaving room for upload and response transfer. Cancelling aborts the browser
 request, but cannot guarantee that provider-side processing or billing stops.
 
+## Generated-code validation and preview recovery
+
+Before replacing an existing result, the browser parses generated JavaScript/JSX
+and checks the single-file contract: a default-exported component, static imports
+only from `react` and `lucide-react`, no dynamic imports or `require()`, and a
+200,000-character size limit. Invalid generations leave the existing result intact.
+This is a compatibility check, not a security sandbox, type checker, or guarantee
+of visual accuracy. The preview's compiler and runtime still detect errors such
+as missing icon exports and undefined variables. No automatic AI repair is run.
+
+The editor remains mounted even when its entire contents are deleted. Preview
+errors keep the editor and copy/download actions available. Use **Restart
+preview** after fixing code or reconnecting. **Restore generated code** replaces
+edits with the latest accepted generation for the current screenshot. It is an
+in-memory recovery point, not persistent project history.
+
+Manual recovery checks after a successful generation:
+
+1. Delete a closing JSX tag. An error should appear while the editor stays usable.
+2. Fix the tag. The preview should recover; use Restart preview if necessary.
+3. Introduce a render-time error, e.g. `throw new Error("Preview check")` inside
+   the component. The preview should show an error without taking down the app.
+4. Click Restore generated code. The original generated component should return
+   and copy/download should use that restored code.
+5. Delete all code. The editor and Restore generated code must remain available.
+
+The editor/preview and JSX parser load on demand to keep the initial page smaller.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

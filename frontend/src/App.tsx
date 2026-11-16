@@ -1,13 +1,15 @@
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { GenerationRequest } from "./generation";
-import LivePreview from "./LivePreview";
 import ParticleBackground from "./ParticleBackground";
+
+const LivePreview = lazy(() => import("./LivePreview"));
 
 function App() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [generatedCode, setGeneratedCode] = useState("");
+  const [originalCode, setOriginalCode] = useState("");
   const [generationError, setGenerationError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -19,7 +21,10 @@ function App() {
   const [generation] = useState(() => new GenerationRequest({
     onBusy: setIsGenerating,
     onError: setGenerationError,
-    onCode: setGeneratedCode,
+    onCode: (code) => {
+      setGeneratedCode(code);
+      setOriginalCode(code);
+    },
   }));
 
   useEffect(() => () => generation.cancel(false), [generation]);
@@ -45,6 +50,7 @@ function App() {
     setSelectedFile(file);
     setSelectedImage(imageUrl);
     setGeneratedCode("");
+    setOriginalCode("");
     setGenerationError("");
     setIsCopied(false);
   };
@@ -464,7 +470,7 @@ function App() {
         )}
 
         {/* ── STUDIO OUTPUT ── */}
-        {generatedCode && (
+        {originalCode && (
           <section className="mt-4" id="studio">
             {/* Section label */}
             <div className="mb-5 flex items-center justify-between">
@@ -542,7 +548,9 @@ function App() {
 
               {/* Sandpack */}
               <div className="p-3 sm:p-4">
-                <LivePreview code={generatedCode} onCodeChange={setGeneratedCode} />
+                <Suspense fallback={<p role="status" className="p-6 text-slate-300">Loading code editor and preview...</p>}>
+                  <LivePreview code={generatedCode} originalCode={originalCode} onCodeChange={setGeneratedCode} />
+                </Suspense>
               </div>
             </div>
           </section>

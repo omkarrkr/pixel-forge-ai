@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babel/parser": "7.29.8",
     "@codesandbox/sandpack-react": "^2.20.0",
     "@tailwindcss/vite": "^4.3.3",
     "react": "^19.2.8",

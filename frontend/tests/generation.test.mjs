@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { GenerationRequest } from '../src/generation.ts';
 
 const file = new File(['image'], 'screen.png', { type: 'image/png' });
+const code = text => `export default function App() { return <h1>${text}</h1>; }`;
 const response = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers });
 const deferred = () => {
   let resolve;
@@ -27,10 +28,10 @@ test('successful generation replaces code and finishes', async t => {
   const { request, state } = setup(t, async (_url, options) => {
     assert.ok(options.signal instanceof AbortSignal);
     assert.equal(options.body.get('file').name, 'screen.png');
-    return response({ code: 'new code' });
+    return response({ code: code('new code') });
   });
   await request.generate(file, '/generate');
-  assert.deepEqual(state, { code: 'new code', busy: false, error: '' });
+  assert.deepEqual(state, { code: code('new code'), busy: false, error: '' });
 });
 
 test('failure preserves edits and exposes rate-limit recovery', async t => {
@@ -67,9 +68,9 @@ test('old result and finally cannot overwrite a newer active request', async t =
   await first;
   assert.equal(state.busy, true);
   assert.equal(state.code, 'existing edited code');
-  fresh.resolve(response({ code: 'fresh code' }));
+  fresh.resolve(response({ code: code('fresh code') }));
   await second;
-  assert.equal(state.code, 'fresh code');
+  assert.equal(state.code, code('fresh code'));
   assert.equal(state.busy, false);
 });
 
@@ -85,7 +86,7 @@ test('old failure cannot replace the new request status', async t => {
   await first;
   assert.equal(state.error, '');
   assert.equal(state.busy, true);
-  fresh.resolve(response({ code: 'fresh' }));
+  fresh.resolve(response({ code: code('fresh') }));
   await second;
 });
 
@@ -96,7 +97,7 @@ test('duplicate starts make only one request', async t => {
   const first = request.generate(file, '/generate');
   await request.generate(file, '/generate');
   assert.equal(calls, 1);
-  pending.resolve(response({ code: 'code' }));
+  pending.resolve(response({ code: code('code') }));
   await first;
 });
 
@@ -136,11 +137,26 @@ test('network failures allow another attempt', async t => {
   let calls = 0;
   const { request, state } = setup(t, async () => {
     if (++calls === 1) throw new TypeError('Failed to fetch');
-    return response({ code: 'recovered' });
+    return response({ code: code('recovered') });
   });
   await request.generate(file, '/generate');
   assert.match(state.error, /connection/);
   await request.generate(file, '/generate');
-  assert.equal(state.code, 'recovered');
+  assert.equal(state.code, code('recovered'));
   assert.equal(state.error, '');
+});
+
+test('invalid JSX and unsupported imports preserve the previous result', async t => {
+  const samples = [
+    'export default function App() { return <div>unfinished',
+    'import Button from "./Button"; export default function App() { return <Button/>; }',
+    'export function App() { return <div/>; }',
+  ];
+  const { request, state } = setup(t, async () => response({ code: samples.shift() }));
+  for (let i = 0; i < 3; i++) {
+    await request.generate(file, '/generate');
+    assert.equal(state.code, 'existing edited code');
+    assert.match(state.error, /could not be used/);
+    assert.equal(state.busy, false);
+  }
 });

@@ -215,6 +215,9 @@ async def generate_code(request: Request, file: UploadFile = File(...)):
 
         CODE REQUIREMENTS:
         - Generate one self-contained React component.
+        - Export the main component as default (export default function App()).
+        - Import dependencies only from "react" or "lucide-react".
+        - Do not use dynamic imports, require(), local imports, or CSS file imports.
         - Use React JSX.
         - Use Tailwind CSS utility classes.
         - Use semantic HTML where appropriate.
